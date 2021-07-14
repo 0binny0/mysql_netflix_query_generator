@@ -23,32 +23,16 @@ genres = [
 ]
 
 shows = [
-    'INSERT INTO tvshow (title, view_rating, release_date, summary, score) VALUES (%s, %s, %s, %s, %s);', [
-        ('show1', None, '2018-12-04', 'show 1 summary', 2.3),
-        ('show2', 'PG', '2013-03-24', 'show 2 summary', 1.5),
-        ('show3', 'PG', '2015-11-11', 'show 3 summary', 3.9),
-        ('show4', 'G', '2020-7-22', 'show 4 summary', 4.2),
-        ('show5', 'R', '2018-2-17', 'show 5 summary', 5.1),
-        ('show6', 'PG', '2018-10-31', 'show 6 summary', 7.3),
-        ('show7', None, '2017-6-23', 'show 7 summary', 1.8),
-        ('show8', 'PG-13', '2021-4-13', 'show 8 summary', 7.3),
-        ('show9', None, '2019-9-25', 'show 8 summary', 6.7)
-    ]
-]
-
-show_tags = [
-    'INSERT INTO show_tag (id, tag_name, tvshow_title) VALUES (%s, %s, %s);', [
-        (None, 'tag1', 'show5'),
-        (None, 'tag1', 'show8'),
-        (None, 'tag2', 'show1'),
-        (None, 'tag2', 'show5'),
-        (None, 'tag3', 'show2'),
-        (None, 'tag3', 'show1'),
-        (None, 'tag3', 'show7'),
-        (None, 'tag4', 'show3'),
-        (None, 'tag5', 'show3'),
-        (None, 'tag5', 'show4')
-
+    'INSERT INTO tvshow (title, view_rating, release_date, summary, score, votes) VALUES (%s, %s, %s, %s, %s, %s);', [
+        ('show1', None, '2018-12-04', 'show 1 summary', 2.3, 3822),
+        ('show2', 'PG', '2013-03-24', 'show 2 summary', 1.5, 17292),
+        ('show3', 'PG', '2015-11-11', 'show 3 summary', 3.9, None),
+        ('show4', 'G', '2020-7-22', 'show 4 summary', 4.2, 2111),
+        ('show5', 'R', '2018-2-17', 'show 5 summary', 5.1, 19033),
+        ('show6', 'PG', '2018-10-31', 'show 6 summary', 7.3, 47219),
+        ('show7', None, '2017-6-23', 'show 7 summary', 1.8, 192),
+        ('show8', 'PG-13', '2021-4-13', 'show 8 summary', 7.3, None),
+        ('show9', None, '2019-9-25', 'show 9 summary', 6.7, 89921)
     ]
 ]
 
@@ -62,8 +46,12 @@ show_genres = [
         (None, 'genre3', 'show1'),
         (None, 'genre4', 'show2'),
         (None, 'genre4', 'show6'),
-        (None, 'genre4', 'show7'),
-        (None, 'genre4', 'show5')
+        (None, None, 'show7'),
+        (None, 'genre4', 'show5'),
+        (None, 'genre2', 'show1'),
+        (None, 'genre4', 'show1'),
+        (None, 'genre3', 'show3'),
+        (None, 'genre4', 'show8')
     ]
 ]
 
@@ -82,4 +70,4 @@ show_actors = [
     ]
 ]
 
-table_data = [actors, tags, genres, shows, show_tags, show_genres, show_actors]
+table_data = [actors, tags, genres, shows, show_genres, show_actors]

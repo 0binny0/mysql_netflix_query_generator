@@ -6,7 +6,7 @@ tag_table = """
 
 genre_table = """
     CREATE TABLE IF NOT EXISTS genre (
-        name VARCHAR(20) NOT NULL PRIMARY KEY
+        name VARCHAR(20) PRIMARY KEY
     );
 """
 
@@ -26,24 +26,15 @@ show_table = """
         release_date DATE,
         summary TEXT,
         score DECIMAL(2, 1),
+        votes INT,
         PRIMARY KEY(title)
-    );
-"""
-
-show_tag_table = """
-    CREATE TABLE IF NOT EXISTS show_tag (
-        id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        tag_name VARCHAR(20) NOT NULL,
-        tvshow_title VARCHAR(20) NOT NULL,
-        FOREIGN KEY (tag_name) REFERENCES tag(name),
-        FOREIGN KEY (tvshow_title) REFERENCES tvshow(title)
     );
 """
 
 show_genre_table = """
     CREATE TABLE IF NOT EXISTS show_genre (
         id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        genre_name VARCHAR(20) NOT NULL,
+        genre_name VARCHAR(20) NULL,
         tvshow_title VARCHAR(20) NOT NULL,
         FOREIGN KEY (genre_name) REFERENCES genre(name),
         FOREIGN KEY (tvshow_title) REFERENCES tvshow(title)
@@ -62,6 +53,6 @@ show_actor_table = """
 """
 
 tables = [
-    tag_table, genre_table, actor_table, show_table, show_tag_table,
+    tag_table, genre_table, actor_table, show_table,
     show_genre_table, show_actor_table
 ]

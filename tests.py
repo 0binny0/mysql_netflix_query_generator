@@ -1,32 +1,85 @@
 
 import unittest
+from argparse import Namespace
+from unittest.mock import Mock, patch
 
 import mysql.connector as mysql_db
-from mysql.connector import ProgrammingError
+from mysql.connector import ProgrammingError, MySQLConnection
 
-from main import populate_db
-from sql_data import tables
+from main import (
+    db_connect, get_show_listing, get_actor_filmography, get_show_profile
+)
+from tables import tables
 from patterns import capture_names
 from test_data import table_data
 
 
-class DBTestCase(unittest.TestCase):
+class TestShowListing(unittest.TestCase):
+    '''Verify that the at most 5 shows are listed
+    in descending order'''
 
-    @classmethod
-    def setUpClass(cls):
-        cls.db_connect = mysql_db.connect(
-            username="root",
-            password="password"
+    test_db_config = {
+        'user': "root",
+        'password': "password",
+        'database': "test_db"
+    }
+
+    @patch.dict('main.credentials', test_db_config)
+    def test_db_query_show_listing_no_genre(self):
+        shows = get_show_listing()
+        self.assertLessEqual(len(shows), 5)
+
+    @patch.dict('main.credentials', test_db_config)
+    def test_db_query_show_listing_with_genre(self):
+        shows = get_show_listing(genre="genre3")
+        self.assertEqual(len(shows), 1)
+
+
+class TestShowActorDetailListing(unittest.TestCase):
+
+    test_db_config = {
+        'user': "root",
+        'password': "password",
+        'database': "test_db"
+    }
+
+    '''Verify that all shows that actor has played a role in
+    are listed in ascending order'''
+    @patch.dict('main.credentials', test_db_config)
+    def test_all_actor_shows_listed(self):
+        actor_shows = get_actor_filmography("actor1_fn actor1_ln")
+        self.assertEqual(len(actor_shows), 3)
+        for i in range(len(actor_shows) - 1):
+            self.assertLess(
+                actor_shows[i]['release_date'],
+                actor_shows[i + 1]['release_date']
+            )
+
+class TestShowDetailListing(unittest.TestCase):
+    '''Verify that that tags, actors, and show details
+    are listed for a given tvshow profile.'''
+
+    test_db_config = {
+        'user': "root",
+        'password': "password",
+        'database': "test_db"
+    }
+
+    @patch.dict('main.credentials', test_db_config)
+    def test_get_show_profile(self):
+        show = get_show_profile("show3")[0]
+        self.assertEqual(
+            show['release_date'],
+            2015
         )
-        cls.db_cursor = cls.db_connect.cursor()
-        # cls.db_cursor.execute(create_tables())
-
-        # cls.db_connect.commit()
-
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.db_connect.close()
+        self.assertEqual(
+            show['title'],
+            'show3'
+        )
+        self.assertEqual(
+            show['view_rating'],
+            'PG'
+        )
 
 
 class TestRegexFullName(unittest.TestCase):
@@ -45,23 +98,14 @@ class TestRegexFullName(unittest.TestCase):
         self.assertEqual(result[3], ['Daniel', None, "Day-Lewis"])
 
 
-class TestDBCreateTables(DBTestCase):
-    '''Verify that the tables for the database are created.'''
-
-    def setUp(self):
-        super().setUp()
-
-    def test_database_tables_created(self):
-        pass
-
-
-
-
 
 if __name__ == "__main__":
     with mysql_db.connect(user="root", password="password") as connection:
         cursor = connection.cursor()
-        cursor.execute("""SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME LIKE 'test_db';""")
+        cursor.execute("""
+            SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA
+            WHERE SCHEMA_NAME LIKE 'test_db';
+        """)
         cursor.fetchall()
         db_exists = cursor.rowcount
         if not db_exists:
@@ -73,7 +117,6 @@ if __name__ == "__main__":
             for create_table in tables:
                 cursor.execute(create_table)
                 connection.commit()
-            import pdb; pdb.set_trace()
             for insert_data in table_data:
                 statement = insert_data[0]
                 data = insert_data[1]
