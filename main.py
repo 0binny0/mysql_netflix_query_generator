@@ -3,9 +3,10 @@ import csv
 import re
 import mysql.connector
 from datetime import datetime
+import argparse
 
 from tables import tables
-from patterns import capture_names
+from helpers import capture_names, check_int_value
 
 credentials = {
     'user': "root",
@@ -16,34 +17,112 @@ credentials = {
 def db_connect(func):
     def wrapper_db_connect(*args, **kwargs):
         with mysql.connector.connect(**credentials) as db_connection:
-            cursor = db_connection.cursor(dictionary=True)
-            return func(cursor, *args, **kwargs)
+            return func(db_connection, *args, **kwargs)
     return wrapper_db_connect
 
+@db_connect
+def populate_tables(connection, row):
+    cursor = connection.cursor(dictionary=True)
+    _row = {
+        'tvshow': {},
+        'genres': [],
+        'actors': []
+    }
+    for column, value in row.items():
+        column = column.replace(" ", "_")
+        if column == "":
+            pass
+        elif column == "release_date":
+            try:
+                value = datetime.strptime(value, "%d %b %Y").strftime("%Y-%m-%d")
+            except ValueError:
+                value = None
+            finally:
+                _row['tvshow']['release_date'] = value
+        elif column == "votes" or column == "score":
+            value = check_int_value(value)
+            _row['tvshow'][f'{column}'] = value
+        elif column != 'genre' and column != 'actors':
+            if not value:
+                value = None
+            else:
+                value = value.strip()
+            _row['tvshow'][column] = value
+        elif column == 'genre':
+            genres = value.split(",")
+            if not genres:
+                _row['genres'] = None
+            else:
+                genres = [genre.strip() for genre in genres]
+                _row['genres'].extend(genres)
+        else:
+            actors = capture_names(value)
+            _row['actors'].extend(actors)
+    try:
+        cursor.execute('''
+            INSERT INTO tvshow VALUES (
+                 %(title)s, %(view_rating)s, %(release_date)s,
+                 %(summary)s, %(score)s, %(votes)s
+            );
+        ''', _row['tvshow'])
+    except mysql.connector.IntegrityError:
+        pass
+    else:
+        connection.commit()
+    for genre in _row['genres']:
+        try:
+            cursor.execute(
+                "INSERT INTO genre VALUES (%(genre)s);", {'genre': genre}
+            )
+            print(f"Create genre: {genre}")
+        except mysql.connector.IntegrityError:
+            print(f"Genre {genre} already created.")
+            cursor.execute("""INSERT INTO show_genre VALUES (
+                NULL, %(genre)s, %(title)s
+            );""", {'genre': genre, 'title': _row['tvshow']['title']})
+            print(f"Create show_genre: {_row['tvshow']['title']}:{genre})")
+        finally:
+            connection.commit()
+    for actor in _row['actors']:
+        fn, mn, ln = actor
+        try:
+            cursor.execute("""
+                INSERT INTO actor VALUES (%(fn)s, %(mn)s, %(ln)s);
+            """, {'fn': fn, 'mn': mn, 'ln': ln})
+        except mysql.connector.IntegrityError:
+            cursor.execute("""
+                INSERT INTO show_actor VALUES (
+                    NULL, %(actor_fn)s, %(actor_ln)s, %(title)s
+                )
+            """, {'actor_fn': fn, 'actor_ln': ln, 'title': _row['tvshow']['title']})
+        finally:
+            connection.commit()
 
 @db_connect
-def get_show_listing(cursor, genre=None):
+def get_show_listing(connection, genre=None):
+    cursor = connection.cursor(dictionary=True)
     if not genre:
         cursor.execute("""
-            SELECT title, view_rating, YEAR(release_date), score, votes
+            SELECT DISTINCT title, view_rating, YEAR(release_date) as release_date, score, votes
             FROM tvshow AS t LEFT JOIN show_genre as s
             ON t.title = s.tvshow_title RIGHT JOIN genre as g
-            ON s.genre_name = g.name WHERE votes is NOT NULL
-            ORDER BY votes DESC LIMIT 5;
+            ON s.genre_name = g.name WHERE votes IS NOT NULL
+            ORDER BY votes DESC LIMIT 10;
         """)
     else:
         cursor.execute("""
-            SELECT title, view_rating, YEAR(release_date), score, votes
+            SELECT DISTINCT title, view_rating, YEAR(release_date) as release_date, score, votes
             FROM tvshow AS t LEFT JOIN show_genre as s
             ON t.title = s.tvshow_title RIGHT JOIN genre as g
             ON s.genre_name = g.name
             WHERE g.name = %(genre)s AND votes IS NOT NULL
-            ORDER BY votes DESC LIMIT 5;
+            ORDER BY votes DESC LIMIT 10;
         """, {'genre': genre})
     return cursor.fetchall()
 
 @db_connect
-def get_actor_filmography(cursor, actor):
+def get_actor_filmography(connection, actor):
+    cursor = connection.cursor(dictionary=True)
     fn, ln = actor.split(" ")
     cursor.execute("""
         SELECT release_date, title FROM tvshow
@@ -56,14 +135,37 @@ def get_actor_filmography(cursor, actor):
     return cursor.fetchall()
 
 @db_connect
-def get_show_profile(cursor, show):
+def get_show_profile(connection, show):
+    show_param = '%' + show + '%'
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT title FROM tvshow WHERE title LIKE %(show)s",
+        {'show': show_param}
+    )
+    shows = cursor.fetchall()
+    if len(shows) > 1:
+        print(f"Titles that contain: {show}. Select your show...\n")
+        for i, show in enumerate(shows):
+            print(f"{i + 1} - {show['title']}")
+        while True:
+            show = input(">>> ")
+            cursor.execute("""
+                SELECT * FROM tvshow WHERE title = %(show)s
+            """, {'show': show})
+            try:
+                selected_show = cursor.fetchall()[0]
+            except IndexError:
+                print("No show found. Check the title you searched by.")
+            break
     cursor.execute("""
-        SELECT t.title, t.view_rating, YEAR(t.release_date) as release_date,
+        SELECT t.title, t.view_rating, YEAR(t.release_date) AS release_date,
         t.summary, t.score, t.votes, (
             SELECT GROUP_CONCAT(sa.actor_fn, " ", sa.actor_ln SEPARATOR ', ')
             FROM show_actor AS sa WHERE tvshow_title = %(show)s
-            ORDER BY sa.actor_ln
-        ) AS actors FROM tvshow as t WHERE t.title = %(show)s;
+        ) AS actors, (
+            SELECT GROUP_CONCAT(sg.genre_name SEPARATOR ', ')
+            FROM show_genre AS sg WHERE tvshow_title LIKE %(show)s
+        ) AS genres FROM tvshow as t WHERE t.title = %(show)s;
     """, {'show': show})
     return cursor.fetchall()
 
@@ -75,7 +177,94 @@ def display_shows(genre=None):
         s = ''
         for show in shows:
             s += f"""
-                {show['title']} - {show['release_date']} - {show['view_rating']}
-                {show['score']} - {show['votes']}
+                Title: {show['title']} - Year: {show['release_date']}
+                Rating: {show['view_rating']} - Score: {show['score']} - Votes: {show['votes']}
             """
-        print(s)
+        return s
+
+def display_show(show):
+    print(show)
+    try:
+        show = get_show_profile(show)[0]
+    except IndexError:
+        return "No show exists under that title..."
+    else:
+        return f"""
+            Title: {show['title']} - Genres: {show['genres']}
+            Year: {show['release_date']} - Rating: {show['view_rating']}
+            Score: {show['score']} - Votes: {show['votes']}
+            Summary: {show['summary']}
+            Actors: {show['actors']}
+        """
+
+def display_actor_filmography(actor):
+    shows = get_actor_filmography(actor)
+    if not shows:
+        print("There are no shows for that actor...")
+    else:
+        s = ''
+        for show in shows:
+            s += f"{show['title']} - {show['release_date']}\n"
+        return s
+
+def main():
+    while True:
+        print("""
+            Pick from one of the following options:
+            1) View an actor's filmography
+            2) Get an overview of a given show
+            3) See the top shows for a given genre
+        """)
+        user_option = input("\n>>> ")
+        if user_option not in ["1", "2", "3"]:
+            print("That option is not avialable.")
+            continue
+        break
+    if user_option == "1":
+        while True:
+            actor = input("What actor filmography would you like to see?")
+            try:
+                actor_fn, actor_ln = actor.split(" ")
+            except IndexError:
+                print("Error: Actor's full name wasn't provided")
+            else:
+                print(display_actor_filmography(actor))
+                return
+    elif user_option == "2":
+        while True:
+            print("Name the show/movie you'd like to see more information about...")
+            show = input("\n>>> ")
+            if not show:
+                print("No show provided...")
+            else:
+                print(display_show(show))
+                return
+    else:
+        while True:
+            print("Enter the genre that you want to filter shows by...")
+            genre = input("\n>>> ")
+            print(display_shows(genre))
+            return
+
+def store_database():
+    with mysql.connector.connect(user="root", password="password") as connection:
+        cursor = connection.cursor()
+        cursor.execute("CREATE DATABASE IF NOT EXISTS main_database;")
+        cursor.execute("USE main_database;")
+        cursor.execute("""
+            SELECT table_name FROM INFORMATION_SCHEMA.tables
+            WHERE TABLE_SCHEMA =  %(db)s;
+        """, {'db': 'main_database'})
+        tables_exist = cursor.fetchall()
+        if not tables_exist:
+            for table in tables:
+                cursor.execute(table)
+            with open("netflix_data_v_1.csv", encoding="utf8") as data:
+                netflix_data = csv.DictReader(data)
+                for row in netflix_data:
+                    populate_tables(row)
+    main()
+
+if __name__ == "__main__":
+    # import pdb; pdb.set_trace()
+    store_database()
