@@ -151,7 +151,7 @@ def get_show_profile(connection, show):
     )
     shows = cursor.fetchall()
     while True:
-        # cls()
+        cls()
         if len(shows) > 1:
             print(f"Titles that contain: {show}. Select your show...\n")
             for i, s in enumerate(shows):
@@ -166,7 +166,7 @@ def get_show_profile(connection, show):
                 print("\nNo show found. Check the title you searched by.")
                 sleep(2)
                 continue
-            finally:
+            else:
                 show = _show
             break
     cursor.execute("""
