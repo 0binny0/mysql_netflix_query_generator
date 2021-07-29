@@ -152,33 +152,31 @@ def get_show_profile(connection, show):
     shows = cursor.fetchall()
     while True:
         cls()
-        if len(shows) > 1:
-            print(f"Titles that contain: {show}. Select your show...\n")
-            for i, s in enumerate(shows):
-                print(f"{i + 1} - {s['title']}")
-            _show = input(">>> ")
-            cursor.execute("""
-                SELECT * FROM tvshow WHERE title = %(show)s
-            """, {'show': _show})
-            try:
-                selected_show = cursor.fetchall()[0]
-            except IndexError:
-                print("\nNo show found. Check the title you searched by.")
-                sleep(2)
-                continue
-            else:
-                show = _show
-            break
+        print(f"Titles that contain: {show}. Select your show...\n")
+        for i, s in enumerate(shows):
+            print(f"{i + 1} - {s['title']}")
+        _show = input(">>> ")
+        cursor.execute("""
+            SELECT * FROM tvshow WHERE title = %(show)s
+        """, {'show': _show})
+        try:
+            selected_show = cursor.fetchall()[0]
+        except IndexError:
+            print("\nNo show found. Check the title you searched by.")
+            sleep(2)
+            continue
+        show = selected_show
+        break
     cursor.execute("""
         SELECT t.title, t.view_rating, YEAR(t.release_date) AS release_date,
         t.summary, t.score, t.votes, (
             SELECT GROUP_CONCAT(sa.actor_fn, " ", sa.actor_ln SEPARATOR ', ')
-            FROM show_actor AS sa WHERE tvshow_title = %(show)s
+            FROM show_actor AS sa WHERE tvshow_title LIKE %(show)s
         ) AS actors, (
             SELECT GROUP_CONCAT(sg.genre_name SEPARATOR ', ')
-            FROM show_genre AS sg WHERE tvshow_title LIKE %(show)s
+            FROM show_genre AS sg WHERE tvshow_title = %(show)s
         ) AS genres FROM tvshow as t WHERE t.title = %(show)s;
-    """, {'show': show})
+    """, {'show': show['title']})
     return cursor.fetchall()
 
 def display_shows(genre=None):
