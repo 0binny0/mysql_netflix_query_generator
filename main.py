@@ -152,21 +152,22 @@ def get_show_profile(connection, show):
     shows = cursor.fetchall()
     while True:
         cls()
-        print(f"Titles that contain: {show}. Select your show...\n")
-        for i, s in enumerate(shows):
-            print(f"{i + 1} - {s['title']}")
-        _show = input(">>> ")
-        cursor.execute("""
-            SELECT * FROM tvshow WHERE title = %(show)s
-        """, {'show': _show})
-        try:
-            selected_show = cursor.fetchall()[0]
-        except IndexError:
-            print("\nNo show found. Check the title you searched by.")
-            sleep(2)
-            continue
-        show = selected_show
-        break
+        if len(shows) > 0:
+            print(f"Titles that contain: {show}. Select your show...\n")
+            for i, s in enumerate(shows):
+                print(f"{i + 1} - {s['title']}")
+            _show = input(">>> ")
+            cursor.execute("""
+                SELECT * FROM tvshow WHERE title = %(show)s
+            """, {'show': _show})
+            try:
+                selected_show = cursor.fetchall()[0]
+            except IndexError:
+                print("\nNo show found. Check the title you searched by.")
+                sleep(2)
+                continue
+            show = selected_show
+            break
     cursor.execute("""
         SELECT t.title, t.view_rating, YEAR(t.release_date) AS release_date,
         t.summary, t.score, t.votes, (
