@@ -3,10 +3,11 @@ import csv
 import re
 import mysql.connector
 from datetime import datetime
-import argparse
+from time import sleep
+
 
 from tables import tables
-from helpers import capture_names, check_int_value
+from helpers import capture_names, check_int_value, cls
 
 credentials = {
     'user': "root",
@@ -34,7 +35,8 @@ def populate_tables(connection, row):
             pass
         elif column == "release_date":
             try:
-                value = datetime.strptime(value, "%d %b %Y").strftime("%Y-%m-%d")
+                value = (datetime.strptime(value, "%d %b %Y")
+                                    .strftime("%Y-%m-%d"))
             except ValueError:
                 value = None
             finally:
@@ -94,7 +96,10 @@ def populate_tables(connection, row):
                 INSERT INTO show_actor VALUES (
                     NULL, %(actor_fn)s, %(actor_ln)s, %(title)s
                 )
-            """, {'actor_fn': fn, 'actor_ln': ln, 'title': _row['tvshow']['title']})
+            """, {
+                'actor_fn': fn, 'actor_ln': ln,
+                'title': _row['tvshow']['title']}
+            )
         finally:
             connection.commit()
 
@@ -103,7 +108,8 @@ def get_show_listing(connection, genre=None):
     cursor = connection.cursor(dictionary=True)
     if not genre:
         cursor.execute("""
-            SELECT DISTINCT title, view_rating, YEAR(release_date) as release_date, score, votes
+            SELECT DISTINCT title, view_rating,
+            YEAR(release_date) as release_date, score, votes
             FROM tvshow AS t LEFT JOIN show_genre as s
             ON t.title = s.tvshow_title RIGHT JOIN genre as g
             ON s.genre_name = g.name WHERE votes IS NOT NULL
@@ -111,7 +117,8 @@ def get_show_listing(connection, genre=None):
         """)
     else:
         cursor.execute("""
-            SELECT DISTINCT title, view_rating, YEAR(release_date) as release_date, score, votes
+            SELECT DISTINCT title, view_rating,
+            YEAR(release_date) as release_date, score, votes
             FROM tvshow AS t LEFT JOIN show_genre as s
             ON t.title = s.tvshow_title RIGHT JOIN genre as g
             ON s.genre_name = g.name
@@ -125,7 +132,7 @@ def get_actor_filmography(connection, actor):
     cursor = connection.cursor(dictionary=True)
     fn, ln = actor.split(" ")
     cursor.execute("""
-        SELECT release_date, title FROM tvshow
+        SELECT YEAR(release_date) as release_year, title FROM tvshow
         INNER JOIN show_actor ON tvshow.title = show_actor.tvshow_title
         INNER JOIN actor ON show_actor.actor_fn = actor.first_name
         AND show_actor.actor_ln = actor.last_name
@@ -143,19 +150,24 @@ def get_show_profile(connection, show):
         {'show': show_param}
     )
     shows = cursor.fetchall()
-    if len(shows) > 1:
-        print(f"Titles that contain: {show}. Select your show...\n")
-        for i, show in enumerate(shows):
-            print(f"{i + 1} - {show['title']}")
-        while True:
-            show = input(">>> ")
+    while True:
+        # cls()
+        if len(shows) > 1:
+            print(f"Titles that contain: {show}. Select your show...\n")
+            for i, s in enumerate(shows):
+                print(f"{i + 1} - {s['title']}")
+            _show = input(">>> ")
             cursor.execute("""
                 SELECT * FROM tvshow WHERE title = %(show)s
-            """, {'show': show})
+            """, {'show': _show})
             try:
                 selected_show = cursor.fetchall()[0]
             except IndexError:
-                print("No show found. Check the title you searched by.")
+                print("\nNo show found. Check the title you searched by.")
+                sleep(2)
+                continue
+            finally:
+                show = _show
             break
     cursor.execute("""
         SELECT t.title, t.view_rating, YEAR(t.release_date) AS release_date,
@@ -170,10 +182,15 @@ def get_show_profile(connection, show):
     return cursor.fetchall()
 
 def display_shows(genre=None):
+    cls()
     shows = get_show_listing(genre)
     if not shows:
-        print("No shows in this genre have been voted on.")
+        return "No shows in this genre have been voted on."
     else:
+        if genre:
+            print(f"Top {len(shows)} movies/shows found in {genre.title()}:")
+        else:
+            print(f"Top {len(shows)} overall shows: (No genre searched)")
         s = ''
         for show in shows:
             s += f"""
@@ -183,7 +200,7 @@ def display_shows(genre=None):
         return s
 
 def display_show(show):
-    print(show)
+    cls()
     try:
         show = get_show_profile(show)[0]
     except IndexError:
@@ -198,13 +215,15 @@ def display_show(show):
         """
 
 def display_actor_filmography(actor):
+    cls()
     shows = get_actor_filmography(actor)
     if not shows:
-        print("There are no shows for that actor...")
+        return f"There are no shows the given actor...({actor})"
     else:
+        print(f"{actor.title()} Filmography (by Year): \n")
         s = ''
         for show in shows:
-            s += f"{show['title']} - {show['release_date']}\n"
+            s += f"{show['title']} - {show['release_year']}\n"
         return s
 
 def main():
@@ -222,18 +241,23 @@ def main():
         break
     if user_option == "1":
         while True:
-            actor = input("What actor filmography would you like to see?")
+            actor = input(
+                "What actor filmography would you like to see?\n>>> "
+            ).strip()
             try:
                 actor_fn, actor_ln = actor.split(" ")
-            except IndexError:
-                print("Error: Actor's full name wasn't provided")
+            except ValueError:
+                print("\nError: Actor's full name wasn't provided")
             else:
+                sleep(1)
                 print(display_actor_filmography(actor))
                 return
     elif user_option == "2":
         while True:
-            print("Name the show/movie you'd like to see more information about...")
-            show = input("\n>>> ")
+            print(
+                "Name the show/movie you'd like to see more information about..."
+            )
+            show = input("\n>>> ").title().strip()
             if not show:
                 print("No show provided...")
             else:
@@ -241,8 +265,10 @@ def main():
                 return
     else:
         while True:
-            print("Enter the genre that you want to filter shows by...")
-            genre = input("\n>>> ")
+            print(
+                "Enter the genre that you want to filter shows by..."
+            )
+            genre = input("\n>>> ").strip()
             print(display_shows(genre))
             return
 
@@ -266,5 +292,4 @@ def store_database():
     main()
 
 if __name__ == "__main__":
-    # import pdb; pdb.set_trace()
     store_database()
