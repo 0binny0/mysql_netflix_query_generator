@@ -4,6 +4,7 @@ import re
 import mysql.connector
 from datetime import datetime
 from time import sleep
+from textwrap import dedent
 
 
 from tables import tables
@@ -155,7 +156,7 @@ def get_show_profile(connection, show):
     while True:
         cls()
         if len(shows) > 0:
-            print(f"Titles that contain: {show}. Select your show...\n")
+            print(f"Titles that contain: {show}\nSelect your show...\n")
             for i, s in enumerate(shows):
                 print(f"{i + 1} - {s['title']}")
             _show = input(">>> ")
@@ -225,12 +226,12 @@ def display_actor_filmography(actor):
 def main():
     cls()
     while True:
-        print("""
-Pick from one of the following options:
-1) View an actor's filmography
-2) Get an overview of a given show
-3) See the top shows for a given genre
-        """)
+        print(dedent("""
+            Pick from one of the following options:
+            1) View an actor's filmography
+            2) Get an overview of a given show
+            3) See the top shows for a given genre
+        """))
         user_option = input("\n>>> ")
         if user_option not in ["1", "2", "3"]:
             print("That option is not avialable.")
