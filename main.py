@@ -150,22 +150,25 @@ def get_show_profile(connection, show):
         {'show': show_param}
     )
     shows = cursor.fetchall()
+    if not shows:
+        return None
     while True:
         cls()
-        print(f"Titles that contain: {show}. Select your show...\n")
-        for i, s in enumerate(shows):
-            print(f"{i + 1} - {s['title']}")
-        _show = input(">>> ")
-        cursor.execute("""
-            SELECT * FROM tvshow WHERE title = %(show)s
-        """, {'show': _show})
-        try:
-            selected_show = cursor.fetchall()[0]
-        except IndexError:
-            print("\nNo show found. Check the title you searched by.")
-            sleep(2)
-            continue
-        show = selected_show
+        if len(shows) > 0:
+            print(f"Titles that contain: {show}. Select your show...\n")
+            for i, s in enumerate(shows):
+                print(f"{i + 1} - {s['title']}")
+            _show = input(">>> ")
+            cursor.execute("""
+                SELECT * FROM tvshow WHERE title = %(show)s
+            """, {'show': _show})
+            try:
+                selected_show = cursor.fetchall()[0]
+            except IndexError:
+                print("\nNo show found. Check the title you searched by.")
+                sleep(2)
+                continue
+            show = selected_show
         break
     cursor.execute("""
         SELECT t.title, t.view_rating, YEAR(t.release_date) AS release_date,
@@ -177,18 +180,17 @@ def get_show_profile(connection, show):
             FROM show_genre AS sg WHERE tvshow_title = %(show)s
         ) AS genres FROM tvshow as t WHERE t.title = %(show)s;
     """, {'show': show['title']})
-    return cursor.fetchall()
+    return cursor.fetchall()[0]
 
 def display_shows(genre=None):
-    cls()
     shows = get_show_listing(genre)
     if not shows:
         return "No shows in this genre have been voted on."
     else:
         if genre:
-            print(f"Top {len(shows)} movies/shows found in {genre.title()}:")
+            print(f"\nTop {len(shows)} movies/shows found in {genre.title()}:")
         else:
-            print(f"Top {len(shows)} overall shows: (No genre searched)")
+            print(f"\nTop {len(shows)} overall shows: (No genre searched)")
         s = ''
         for show in shows:
             s += f"""
@@ -198,70 +200,79 @@ def display_shows(genre=None):
         return s
 
 def display_show(show):
-    cls()
-    try:
-        show = get_show_profile(show)[0]
-    except IndexError:
-        return "No show exists under that title..."
-    else:
-        return f"""
-            Title: {show['title']} - Genres: {show['genres']}
-            Year: {show['release_date']} - Rating: {show['view_rating']}
-            Score: {show['score']} - Votes: {show['votes']}
-            Summary: {show['summary']}
-            Actors: {show['actors']}
-        """
+    show = get_show_profile(show)
+    if not show:
+        return "\nNo show in this genre have been voted on."
+    return f"""
+        Title: {show['title']} - Genres: {show['genres']}
+        Year: {show['release_date']} - Rating: {show['view_rating']}
+        Score: {show['score']} - Votes: {show['votes']}
+        Summary: {show['summary']}
+        Actors: {show['actors']}
+    """
 
 def display_actor_filmography(actor):
-    cls()
     shows = get_actor_filmography(actor)
     if not shows:
-        return f"There are no shows the given actor...({actor})"
+        return f"\nThere are no shows the given actor...({actor})"
     else:
-        print(f"{actor.title()} Filmography (by Year): \n")
+        print(f"\n{actor.title()} Filmography (by Year): \n")
         s = ''
         for show in shows:
             s += f"{show['title']} - {show['release_year']}\n"
         return s
 
 def main():
+    cls()
     while True:
         print("""
-            Pick from one of the following options:
-            1) View an actor's filmography
-            2) Get an overview of a given show
-            3) See the top shows for a given genre
+Pick from one of the following options:
+1) View an actor's filmography
+2) Get an overview of a given show
+3) See the top shows for a given genre
         """)
         user_option = input("\n>>> ")
         if user_option not in ["1", "2", "3"]:
             print("That option is not avialable.")
+            sleep(2)
+            cls()
             continue
         break
     if user_option == "1":
         while True:
+            cls()
             actor = input(
                 "What actor filmography would you like to see?\n>>> "
             ).strip()
+            if not actor:
+                print("Error: No actor name provided")
+                sleep(1)
+                continue
             try:
                 actor_fn, actor_ln = actor.split(" ")
             except ValueError:
                 print("\nError: Actor's full name wasn't provided")
-            else:
                 sleep(1)
+                continue
+            else:
                 print(display_actor_filmography(actor))
                 return
     elif user_option == "2":
+        cls()
         while True:
+            cls()
             print(
                 "Name the show/movie you'd like to see more information about..."
             )
             show = input("\n>>> ").title().strip()
             if not show:
                 print("No show provided...")
+                sleep(1)
             else:
                 print(display_show(show))
                 return
     else:
+        cls()
         while True:
             print(
                 "Enter the genre that you want to filter shows by..."
