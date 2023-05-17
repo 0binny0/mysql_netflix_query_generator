@@ -8,7 +8,6 @@
 ```
 python main.py
 ```
-
 ### Takeaways
  - Classes
  - Databases
